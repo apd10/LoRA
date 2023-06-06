@@ -148,6 +148,11 @@ class BertConfig(PretrainedConfig):
         position_embedding_type="absolute",
         use_cache=True,
         apply_lora=False,
+        use_roast=False,
+        roast_alpha=None,
+        roast_global=False,
+        roast_compression=None,
+        roast_size=None,
         lora_alpha=None,
         lora_r=None,
         apply_adapter=False,
@@ -173,6 +178,11 @@ class BertConfig(PretrainedConfig):
         self.position_embedding_type = position_embedding_type
         self.use_cache = use_cache
         self.apply_lora = apply_lora
+        self.use_roast = use_roast
+        self.roast_alpha = roast_alpha
+        self.roast_global = roast_global
+        self.roast_compression = roast_compression
+        self.roast_size=roast_size
         self.lora_alpha = lora_alpha
         self.lora_r = lora_r
         self.apply_adapter = apply_adapter

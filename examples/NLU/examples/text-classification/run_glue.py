@@ -177,6 +177,26 @@ class ModelArguments:
         default=False,
         metadata={"help": "Whether to apply LoRA or not."},
     )
+    use_roast: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Use roast"},
+    )
+    roast_alpha: Optional[float] = field(
+        default=1.0,
+        metadata={"help": "roast alpha"},
+    )
+    roast_size: Optional[int] = field(
+        default=1000000,
+        metadata={"help": "roast alpha"},
+    )
+    roast_global: Optional[bool] = field(
+        default=False,
+        metadata={"help": "roast global"},
+    )
+    roast_compression: Optional[float] = field(
+        default=1.0,
+        metadata={"help": "roast compression"},
+    )
     lora_alpha: Optional[int] = field(
         default=None,
         metadata={"help": "LoRA alpha"},
@@ -358,6 +378,11 @@ def main():
         adapter_size=model_args.adapter_size,
         reg_loss_wgt=model_args.reg_loss_wgt,
         masking_prob=model_args.masking_prob,
+        use_roast=model_args.use_roast,
+        roast_alpha=model_args.roast_alpha,
+        roast_global=model_args.roast_global,
+        roast_compression=model_args.roast_compression,
+        roast_size=model_args.roast_size,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
@@ -374,6 +399,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+    print(model)
 
     trainable_params = []
     if model_args.apply_lora:

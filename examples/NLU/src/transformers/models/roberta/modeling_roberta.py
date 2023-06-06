@@ -150,7 +150,7 @@ class RobertaEmbeddings(nn.Module):
 
 # Copied from transformers.models.bert.modeling_bert.BertSelfAttention with Bert->Roberta
 class RobertaSelfAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, seed=1, single_roast_array=None):
         super().__init__()
         if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
             raise ValueError(
@@ -163,14 +163,34 @@ class RobertaSelfAttention(nn.Module):
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
         if config.apply_lora:
-            self.query = lora.Linear(config.hidden_size, self.all_head_size, config.lora_r, lora_alpha=config.lora_alpha)
+            if config.use_roast:
+                if config.roast_global:
+                    self.query = lora.RLinear(config.hidden_size, self.all_head_size,
+                                              roast_alpha=config.roast_alpha, roast_dropout=0,
+                                              roast_seed=seed, hashed_weight=single_roast_array)
+                else:
+                    self.query = lora.RLinear(config.hidden_size, self.all_head_size,
+                                              roast_alpha=config.roast_alpha, roast_dropout=0,
+                                              roast_seed=seed, compression=config.roast_compression)
+            else:
+                self.query = lora.Linear(config.hidden_size, self.all_head_size, config.lora_r, lora_alpha=config.lora_alpha)
         else:
             self.query = nn.Linear(config.hidden_size, self.all_head_size)
         
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
 
         if config.apply_lora:
-            self.value = lora.Linear(config.hidden_size, self.all_head_size, config.lora_r, lora_alpha=config.lora_alpha)
+            if config.use_roast:
+                if config.roast_global:
+                    self.value = lora.RLinear(config.hidden_size, self.all_head_size,
+                                              roast_alpha=config.roast_alpha, roast_dropout=0,
+                                              roast_seed=seed, hashed_weight=single_roast_array)
+                else:
+                    self.value = lora.RLinear(config.hidden_size, self.all_head_size,
+                                              roast_alpha=config.roast_alpha, roast_dropout=0,
+                                              roast_seed=seed+1, compression=config.roast_compression)
+            else:
+                self.value = lora.Linear(config.hidden_size, self.all_head_size, config.lora_r, lora_alpha=config.lora_alpha)
         else:
             self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
@@ -303,9 +323,9 @@ class RobertaSelfOutput(nn.Module):
 
 # Copied from transformers.models.bert.modeling_bert.BertAttention with Bert->Roberta
 class RobertaAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, seed=1, single_roast_array=None):
         super().__init__()
-        self.self = RobertaSelfAttention(config)
+        self.self = RobertaSelfAttention(config, seed, single_roast_array)
         self.output = RobertaSelfOutput(config)
         self.pruned_heads = set()
 
@@ -392,16 +412,16 @@ class RobertaOutput(nn.Module):
 
 # Copied from transformers.models.bert.modeling_bert.BertLayer with Bert->Roberta
 class RobertaLayer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, seed=1, single_roast_array=None):
         super().__init__()
         self.chunk_size_feed_forward = config.chunk_size_feed_forward
         self.seq_len_dim = 1
-        self.attention = RobertaAttention(config)
+        self.attention = RobertaAttention(config, seed, single_roast_array)
         self.is_decoder = config.is_decoder
         self.add_cross_attention = config.add_cross_attention
         if self.add_cross_attention:
             assert self.is_decoder, f"{self} should be used as a decoder model if cross attention is added"
-            self.crossattention = RobertaAttention(config)
+            self.crossattention = RobertaAttention(config, seed + 1234567, single_roast_array)
         self.intermediate = RobertaIntermediate(config)
         self.output = RobertaOutput(config)
 
@@ -479,7 +499,10 @@ class RobertaEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.layer = nn.ModuleList([RobertaLayer(config) for _ in range(config.num_hidden_layers)])
+        single_roast_array = None
+        if config.apply_lora and config.use_roast and config.roast_global:
+            single_roast_array = nn.Parameter(torch.zeros(config.roast_size,), requires_grad=False)
+        self.layer = nn.ModuleList([RobertaLayer(config, seed=1024*i, single_roast_array=single_roast_array) for i in range(config.num_hidden_layers)])
 
     def forward(
         self,
